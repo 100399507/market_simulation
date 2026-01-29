@@ -178,13 +178,10 @@ else:
                 if not changes_made:
                     break
 
-# Après la boucle, calcul final des allocations
-allocations, total_ca_lot = solve_model(buyers_simulated_lot, lot_products)
-
-
-            # --- Calcul allocations ---
+            # Après la boucle, calcul final des allocations
             allocations, total_ca_lot = solve_model(buyers_simulated_lot, lot_products)
             total_ca_global += total_ca_lot
+
 
             # --- Stocker résultats finaux ---
             for b in buyers_simulated_lot:
