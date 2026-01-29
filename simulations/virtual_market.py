@@ -66,6 +66,7 @@ def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
             possible_qtys = [q for q in range(min_qty, max_qty + 1) if q % prod["volume_multiple"] == 0]
             qty_desired = random.choice(possible_qtys) if possible_qtys else max_qty
 
+
             buyer_products[pid] = {
                 "qty_desired": qty_desired,
                 "current_price": prod["starting_price"],
