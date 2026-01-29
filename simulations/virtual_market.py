@@ -36,20 +36,22 @@ def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
             lots[lot_id]["products"].append(pid)
 
     for b in range(1, num_buyers+1):
-        buyer_name = f"Buyer_{b}"
-        buyer_products = {}
-        for pid, prod in products.items():
-            buyer_products[pid] = {
-                "qty_desired": random.randint(prod["seller_moq"], prod["stock"]),
-                "current_price": prod["starting_price"],
-                "max_price": prod["starting_price"]*1.5,
-                "moq": prod["seller_moq"],
-                "volume_multiple": prod["volume_multiple"]
-            }
-        buyers.append({
-            "name": buyer_name,
-            "auto_bid": True,
-            "products": buyer_products
-        })
+    buyer_name = f"Buyer_{b}"
+    buyer_products = {}
+    for pid, prod in products.items():
+        min_qty = min(prod["seller_moq"], prod["stock"])  # éviter la plage vide
+        buyer_products[pid] = {
+            "qty_desired": random.randint(min_qty, prod["stock"]),
+            "current_price": prod["starting_price"],
+            "max_price": round(prod["starting_price"] * random.uniform(1.1, 2.0), 2),
+            "moq": prod["seller_moq"],
+            "volume_multiple": prod["volume_multiple"]
+        }
+    buyers.append({
+        "name": buyer_name,
+        "auto_bid": True,
+        "products": buyer_products
+    })
+
 
     return lots, products, buyers
