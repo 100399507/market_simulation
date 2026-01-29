@@ -182,22 +182,24 @@ else:
             lot_products = lot["products"]
             for pid in lot_products:
                 product_info = products[pid]
-                for b in buyers_simulated:
-                    buyer_name = b["name"]
-                    prod_buyer = b["products"].get(pid)
-                    if prod_buyer:
+                for row in all_results:
+                    if row["Produit"] == product_info["name"] and row["Lot"] == lot["lot_name"]:
                         lot_rows.append({
                             "Lot": lot["lot_name"],
                             "Produit": product_info["name"],
                             "Stock total": product_info["stock"],
                             "MOQ": product_info["seller_moq"],
                             "Volume multiple": product_info["volume_multiple"],
-                            "Acheteur": buyer_name,
-                            "Qté demandée": prod_buyer["qty_desired"],
-                            "Qté allouée": allocations[buyer_name].get(pid, 0),
-                            "Prix max (€)": prod_buyer["max_price"],
-                            "Prix final (€)": prod_buyer["current_price"]
+                            "Acheteur": row["Acheteur"],
+                            "Qté demandée": row["Qté demandée"],
+                            "Qté allouée": row["Qté allouée"],
+                            "Prix max (€)": next(
+                                (b["products"][pid]["max_price"] for b in buyers if b["name"] == row["Acheteur"]),
+                                None
+                            ),
+                            "Prix final (€)": row["Prix final (€)"]
                         })
+
 
         df_lot_summary = pd.DataFrame(lot_rows)
 
