@@ -3,6 +3,7 @@ import streamlit as st
 import copy
 import random
 import string
+import altair as alt
 import pandas as pd
 from core.allocation_algo import run_auto_bid_aggressive, solve_model
 from core.recommendation import simulate_optimal_bid
@@ -73,7 +74,8 @@ def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
 
             buyer_products[pid] = {
                 "qty_desired": qty_desired,
-                "current_price": prod["starting_price"],
+                "starting_price": prod["starting_price"],  # prix initial
+                "current_price": prod["starting_price"],   # prix courant pour l'auto-bid
                 "max_price": round(prod["starting_price"] * random.uniform(1.1, 2.0), 2),
                 "moq": prod["seller_moq"],
                 "volume_multiple": VOLUME_MULTIPLE
@@ -96,8 +98,6 @@ mode = st.radio("Choisir le mode :", ["Marché réel", "Marché virtuel (simulat
 
 if mode == "Marché réel":
     st.info("Utilisez cette section pour saisir vos enchères réelles et voir vos allocations.")
-
-    # Ici tu peux mettre ton ancien code buyer_app.py intégré ou importer
     from apps.buyer_app import buyer_app
     buyer_app()
 
@@ -118,10 +118,8 @@ else:
         st.success("✅ Marché virtuel généré !")
 
         all_results = []
-        all_history = []  # <-- pour stocker les incréments
+        all_history = []
         total_ca_global = 0
-
-        # Barre de progression
         progress_bar = st.progress(0)
         num_lots_total = len(lots)
         lot_counter = 0
@@ -130,7 +128,7 @@ else:
         for lot_id, lot in lots.items():
             lot_products = [products[pid] for pid in lot["products"]]
 
-            # Sélection des acheteurs qui participent à ce lot
+            # Sélection des acheteurs pour ce lot
             buyers_for_lot = []
             for b in buyers:
                 prod_for_lot = {pid: p for pid, p in b["products"].items() if pid in lot["products"]}
@@ -141,7 +139,7 @@ else:
                         "products": prod_for_lot
                     })
 
-            # --- Lancer l'auto-bid avec suivi des incréments ---
+            # --- Auto-bid ---
             buyers_simulated_lot = copy.deepcopy(buyers_for_lot)
             for round_num in range(30):
                 changes_made = False
@@ -166,11 +164,11 @@ else:
                 if not changes_made:
                     break
 
-            # Calcul allocations finales
+            # --- Calcul allocations ---
             allocations, total_ca_lot = solve_model(buyers_simulated_lot, lot_products)
             total_ca_global += total_ca_lot
 
-            # Stocker les résultats finaux
+            # --- Stocker résultats finaux ---
             for b in buyers_simulated_lot:
                 buyer_name = b["name"]
                 for pid, p in b["products"].items():
@@ -180,6 +178,8 @@ else:
                         "Produit": products[pid]["name"],
                         "Qté demandée": p["qty_desired"],
                         "Qté allouée": allocations[buyer_name].get(pid, 0),
+                        "Prix initial (€)": p["starting_price"],
+                        "Prix max (€)": p["max_price"],
                         "Prix final (€)": p["current_price"]
                     })
 
@@ -194,19 +194,17 @@ else:
         st.markdown(f"### 💰 Chiffre d'affaires total simulé : {total_ca_global:.2f} €")
 
         st.subheader("📋 Récapitulatif complet par lot, produit et acheteur")
-
         lot_rows = []
 
         for lot_id, lot in lots.items():
-            lot_products = lot["products"]
-            for pid in lot_products:
+            for pid in lot["products"]:
                 product_info = products[pid]
                 for row in all_results:
                     if row["Produit"] == product_info["name"] and row["Lot"] == lot["lot_name"]:
                         qty_allocated = row["Qté allouée"]
                         stock_total = product_info["stock"]
                         percent_allocated = round((qty_allocated / stock_total) * 100, 2) if stock_total > 0 else 0
-        
+
                         lot_rows.append({
                             "Lot": lot["lot_name"],
                             "Produit": product_info["name"],
@@ -216,10 +214,8 @@ else:
                             "Acheteur": row["Acheteur"],
                             "Qté demandée": row["Qté demandée"],
                             "Qté allouée": qty_allocated,
-                            "Prix max (€)": next(
-                                (b["products"][pid]["max_price"] for b in buyers if b["name"] == row["Acheteur"]),
-                                None
-                            ),
+                            "Prix initial (€)": row["Prix initial (€)"],
+                            "Prix max (€)": row["Prix max (€)"],
                             "Prix final (€)": row["Prix final (€)"],
                             "% de quantité écoulée": percent_allocated
                         })
@@ -231,3 +227,26 @@ else:
             st.subheader("📈 Historique des incréments de prix par lot")
             df_history = pd.DataFrame(all_history)
             st.dataframe(df_history.sort_values(["Lot", "Round", "Produit", "Acheteur"]))
+            # --- Graphique évolution des prix ---
+
+            st.subheader("📈 Courbes d'évolution des prix par produit et acheteur")
+        
+            # Préparer les données pour Altair
+            df_chart = df_history.copy()
+            df_chart["Round"] = df_chart["Round"].astype(int)
+            df_chart["Prix actuel (€)"] = df_chart["Prix actuel (€)"].astype(float)
+        
+            # Créer le graphique
+            chart = alt.Chart(df_chart).mark_line(point=True).encode(
+                x="Round:O",
+                y="Prix actuel (€):Q",
+                color="Acheteur:N",
+                strokeDash="Produit:N",
+                tooltip=["Lot", "Produit", "Acheteur", "Round", "Prix actuel (€)"]
+            ).properties(
+                width=800,
+                height=400
+            ).interactive()
+        
+            st.altair_chart(chart)
+
