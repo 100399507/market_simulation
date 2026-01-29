@@ -139,20 +139,32 @@ else:
                         "products": prod_for_lot
                     })
 
-            # --- Auto-bid ---
+            # --- Lancer l'auto-bid avec suivi des incréments et arrêt si quantité allouée atteinte ---
             buyers_simulated_lot = copy.deepcopy(buyers_for_lot)
+            allocations = {b["name"]: {pid: 0 for pid in lot["products"]} for b in buyers_simulated_lot}
+            
             for round_num in range(30):
                 changes_made = False
+            
+                # Calcul allocations à ce round
+                allocations_round, _ = solve_model(buyers_simulated_lot, lot_products)
+            
                 for b in buyers_simulated_lot:
                     if not b.get("auto_bid", False):
                         continue
                     for pid, p in b["products"].items():
+                        qty_allocated = allocations_round[b["name"]].get(pid, 0)
+                        if qty_allocated >= p["qty_desired"]:
+                            # Stopper l'enchère si l'acheteur a déjà obtenu sa quantité
+                            continue
+            
                         old_price = p["current_price"]
                         step = max(0.1, p["current_price"] * 0.05)
                         next_price = min(p["current_price"] + step, p["max_price"])
                         if next_price > old_price:
                             p["current_price"] = round(next_price, 2)
                             changes_made = True
+                            # Historique
                             all_history.append({
                                 "Lot": lot["lot_name"],
                                 "Round": round_num + 1,
@@ -161,8 +173,14 @@ else:
                                 "Prix précédent (€)": old_price,
                                 "Prix actuel (€)": p["current_price"]
                             })
+            
+                # Si plus aucun changement, on sort
                 if not changes_made:
                     break
+
+# Après la boucle, calcul final des allocations
+allocations, total_ca_lot = solve_model(buyers_simulated_lot, lot_products)
+
 
             # --- Calcul allocations ---
             allocations, total_ca_lot = solve_model(buyers_simulated_lot, lot_products)
