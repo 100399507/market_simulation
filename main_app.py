@@ -14,6 +14,7 @@ def random_string(n=5):
     return "".join(random.choices(string.ascii_uppercase, k=n))
 
 def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
+    VOLUME_MULTIPLE = 10  # On force tout en multiples de 10
     lots = {}
     products = {}
     buyers = []
@@ -31,15 +32,24 @@ def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
 
         for p in range(1, num_products+1):
             pid = f"{lot_id}_P{p}"
-            volume_multiple = random.choice([10, 20, 50])
-            stock = random.randint(100, 1000)
+
+            # Stock multiple de 10
+            stock = (random.randint(10, 1000) // VOLUME_MULTIPLE) * VOLUME_MULTIPLE
+            if stock == 0:
+                stock = VOLUME_MULTIPLE
+
+            # MOQ multiple de 10
+            seller_moq = (random.randint(10, 200) // VOLUME_MULTIPLE) * VOLUME_MULTIPLE
+            if seller_moq == 0:
+                seller_moq = VOLUME_MULTIPLE
+
             products[pid] = {
                 "id": pid,
                 "name": f"Produit {pid}",
                 "stock": stock,
-                "volume_multiple": volume_multiple,
+                "volume_multiple": VOLUME_MULTIPLE,
                 "starting_price": round(random.uniform(5, 20), 2),
-                "seller_moq": random.randint(50, 200),
+                "seller_moq": seller_moq,
                 "shelf_life": "31.12.2026",
                 "lot_id": lot_id
             }
@@ -50,13 +60,25 @@ def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
         buyer_name = f"Buyer_{b}"
         buyer_products = {}
         for pid, prod in products.items():
+            # Quantité désirée multiple de 10 et ≤ stock
+            min_qty = prod["seller_moq"]
+            max_qty = prod["stock"]
+            if min_qty > max_qty:
+                min_qty = max_qty
+            possible_qtys = list(range(min_qty, max_qty + 1, VOLUME_MULTIPLE))
+            if not possible_qtys:
+                qty_desired = min_qty
+            else:
+                qty_desired = random.choice(possible_qtys)
+
             buyer_products[pid] = {
-                "qty_desired": random.randint(prod["seller_moq"], prod["stock"]),
+                "qty_desired": qty_desired,
                 "current_price": prod["starting_price"],
                 "max_price": round(prod["starting_price"] * random.uniform(1.1, 2.0), 2),
                 "moq": prod["seller_moq"],
-                "volume_multiple": prod["volume_multiple"]
+                "volume_multiple": VOLUME_MULTIPLE
             }
+
         buyers.append({
             "name": buyer_name,
             "auto_bid": True,
@@ -128,13 +150,11 @@ else:
                         continue
                     for pid, p in b["products"].items():
                         old_price = p["current_price"]
-                        # incrément automatique (copie de run_auto_bid_aggressive)
                         step = max(0.1, p["current_price"] * 0.05)
                         next_price = min(p["current_price"] + step, p["max_price"])
                         if next_price > old_price:
                             p["current_price"] = round(next_price, 2)
                             changes_made = True
-                            # Sauvegarde historique
                             all_history.append({
                                 "Lot": lot["lot_name"],
                                 "Round": round_num + 1,
@@ -163,7 +183,6 @@ else:
                         "Prix final (€)": p["current_price"]
                     })
 
-            # Mettre à jour la barre de progression
             lot_counter += 1
             progress_bar.progress(lot_counter / num_lots_total)
 
@@ -205,15 +224,9 @@ else:
                             "% de quantité écoulée": percent_allocated
                         })
 
-
-
         df_lot_summary = pd.DataFrame(lot_rows)
-
-        # Affichage DataFrame avec possibilité de tri
         st.dataframe(df_lot_summary.sort_values(["Lot", "Produit", "Acheteur"]))
 
-
-        # --- Affichage historique des incréments ---
         if all_history:
             st.subheader("📈 Historique des incréments de prix par lot")
             df_history = pd.DataFrame(all_history)
