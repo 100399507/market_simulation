@@ -87,50 +87,95 @@ else:
     num_buyers = st.number_input("Nombre d'acheteurs", min_value=1, max_value=50, value=5)
 
     if st.button("🧪 Générer marché virtuel et lancer simulation"):
-        lots, products, buyers = generate_virtual_market(
-            num_lots=num_lots,
-            num_products=num_products_per_lot,
-            num_buyers=num_buyers
-        )
+    lots, products, buyers = generate_virtual_market(
+        num_lots=num_lots,
+        num_products=num_products_per_lot,
+        num_buyers=num_buyers
+    )
 
-        st.success("✅ Marché virtuel généré !")
+    st.success("✅ Marché virtuel généré !")
 
-        # Lancer l'auto-bid avec barre de progression
-        st.subheader("🚀 Simulation auto-bid en cours...")
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+    all_results = []
+    all_history = []  # <-- pour stocker les incréments
+    total_ca_global = 0
 
-        max_rounds = 30
-        buyers_simulated = copy.deepcopy(buyers)
+    # Barre de progression
+    progress_bar = st.progress(0)
+    num_lots_total = len(lots)
+    lot_counter = 0
 
-        for round_num in range(1, max_rounds + 1):
-            status_text.text(f"Round {round_num}/{max_rounds}")
+    # --- Simulation lot par lot ---
+    for lot_id, lot in lots.items():
+        lot_products = [products[pid] for pid in lot["products"]]
 
-            # Lancer un seul round de l'auto-bid
-            buyers_simulated = run_auto_bid_aggressive(buyers_simulated, list(products.values()), max_rounds=1)
+        # Sélection des acheteurs qui participent à ce lot
+        buyers_for_lot = []
+        for b in buyers:
+            prod_for_lot = {pid: p for pid, p in b["products"].items() if pid in lot["products"]}
+            if prod_for_lot:
+                buyers_for_lot.append({
+                    "name": b["name"],
+                    "auto_bid": b.get("auto_bid", False),
+                    "products": prod_for_lot
+                })
 
-            # Mettre à jour la barre
-            progress_bar.progress(round_num / max_rounds)
+        # --- Lancer l'auto-bid avec suivi des incréments ---
+        buyers_simulated_lot = copy.deepcopy(buyers_for_lot)
+        for round_num in range(30):
+            changes_made = False
+            for b in buyers_simulated_lot:
+                if not b.get("auto_bid", False):
+                    continue
+                for pid, p in b["products"].items():
+                    old_price = p["current_price"]
+                    # incrément automatique (copie de run_auto_bid_aggressive)
+                    step = max(0.1, p["current_price"] * 0.05)
+                    next_price = min(p["current_price"] + step, p["max_price"])
+                    if next_price > old_price:
+                        p["current_price"] = round(next_price, 2)
+                        changes_made = True
+                        # Sauvegarde historique
+                        all_history.append({
+                            "Lot": lot["lot_name"],
+                            "Round": round_num + 1,
+                            "Acheteur": b["name"],
+                            "Produit": products[pid]["name"],
+                            "Prix précédent (€)": old_price,
+                            "Prix actuel (€)": p["current_price"]
+                        })
+            if not changes_made:
+                break
 
-        progress_bar.empty()
-        status_text.text("✅ Simulation terminée !")
+        # Calcul allocations finales
+        allocations, total_ca_lot = solve_model(buyers_simulated_lot, lot_products)
+        total_ca_global += total_ca_lot
 
-        # Résolution finale
-        allocations, total_ca = solve_model(buyers_simulated, list(products.values()))
-
-        st.subheader("📊 Résultats allocation virtuelle")
-        rows = []
-        for b in buyers_simulated:
+        # Stocker les résultats finaux
+        for b in buyers_simulated_lot:
             buyer_name = b["name"]
             for pid, p in b["products"].items():
-                rows.append({
+                all_results.append({
+                    "Lot": lot["lot_name"],
                     "Acheteur": buyer_name,
                     "Produit": products[pid]["name"],
                     "Qté demandée": p["qty_desired"],
                     "Qté allouée": allocations[buyer_name].get(pid, 0),
                     "Prix final (€)": p["current_price"]
                 })
-        df_results = pd.DataFrame(rows)
-        st.dataframe(df_results)
 
-        st.markdown(f"### 💰 Chiffre d'affaires total simulé : {total_ca:.2f} €")
+        # Mettre à jour la barre de progression
+        lot_counter += 1
+        progress_bar.progress(lot_counter / num_lots_total)
+
+    # --- Affichage résultats ---
+    st.subheader("📊 Résultats allocation virtuelle par lot")
+    df_results = pd.DataFrame(all_results)
+    st.dataframe(df_results)
+
+    st.markdown(f"### 💰 Chiffre d'affaires total simulé : {total_ca_global:.2f} €")
+
+    # --- Affichage historique des incréments ---
+    if all_history:
+        st.subheader("📈 Historique des incréments de prix par lot")
+        df_history = pd.DataFrame(all_history)
+        st.dataframe(df_history.sort_values(["Lot", "Round", "Produit", "Acheteur"]))
