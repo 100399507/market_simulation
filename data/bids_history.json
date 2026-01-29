@@ -1,0 +1,32 @@
+[
+  {
+    "buyer": "Buyer_1",
+    "lot_id": "lot_1",
+    "product": "P1",
+    "qty_desired": 100,
+    "qty_allocated": 100,
+    "max_price": 6.0,
+    "final_price": 6.0,
+    "timestamp": "2026-01-29T10:00:00"
+  },
+  {
+    "buyer": "Buyer_2",
+    "lot_id": "lot_1",
+    "product": "P2",
+    "qty_desired": 80,
+    "qty_allocated": 60,
+    "max_price": 12.0,
+    "final_price": 11.0,
+    "timestamp": "2026-01-29T10:05:00"
+  },
+  {
+    "buyer": "Buyer_3",
+    "lot_id": "lot_2",
+    "product": "P4",
+    "qty_desired": 200,
+    "qty_allocated": 150,
+    "max_price": 22.0,
+    "final_price": 21.0,
+    "timestamp": "2026-01-29T10:10:00"
+  }
+]
