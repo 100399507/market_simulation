@@ -178,7 +178,7 @@ else:
 
         lot_rows = []
 
-         for lot_id, lot in lots.items():
+        for lot_id, lot in lots.items():
             lot_products = lot["products"]
             for pid in lot_products:
                 product_info = products[pid]
