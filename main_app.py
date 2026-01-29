@@ -96,41 +96,41 @@ else:
         st.success("✅ Marché virtuel généré !")
 
         # Lancer l'auto-bid avec barre de progression
-            st.subheader("🚀 Simulation auto-bid en cours...")
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+        st.subheader("🚀 Simulation auto-bid en cours...")
+        progress_bar = st.progress(0)
+        status_text = st.empty()
 
-            max_rounds = 30
-            buyers_simulated = copy.deepcopy(buyers)
+        max_rounds = 30
+        buyers_simulated = copy.deepcopy(buyers)
 
-            for round_num in range(1, max_rounds + 1):
-                status_text.text(f"Round {round_num}/{max_rounds}")
+        for round_num in range(1, max_rounds + 1):
+            status_text.text(f"Round {round_num}/{max_rounds}")
 
-                # Lancer un seul round de l'auto-bid
-                buyers_simulated = run_auto_bid_aggressive(buyers_simulated, list(products.values()), max_rounds=1)
+            # Lancer un seul round de l'auto-bid
+            buyers_simulated = run_auto_bid_aggressive(buyers_simulated, list(products.values()), max_rounds=1)
 
-                # Mettre à jour la barre
-                progress_bar.progress(round_num / max_rounds)
+            # Mettre à jour la barre
+            progress_bar.progress(round_num / max_rounds)
 
-            progress_bar.empty()
-            status_text.text("✅ Simulation terminée !")
+        progress_bar.empty()
+        status_text.text("✅ Simulation terminée !")
 
-            # Résolution finale
-            allocations, total_ca = solve_model(buyers_simulated, list(products.values()))
+        # Résolution finale
+        allocations, total_ca = solve_model(buyers_simulated, list(products.values()))
 
-            st.subheader("📊 Résultats allocation virtuelle")
-            rows = []
-            for b in buyers_simulated:
-                buyer_name = b["name"]
-                for pid, p in b["products"].items():
-                    rows.append({
-                        "Acheteur": buyer_name,
-                        "Produit": products[pid]["name"],
-                        "Qté demandée": p["qty_desired"],
-                        "Qté allouée": allocations[buyer_name].get(pid, 0),
-                        "Prix final (€)": p["current_price"]
-                    })
-            df_results = pd.DataFrame(rows)
-            st.dataframe(df_results)
+        st.subheader("📊 Résultats allocation virtuelle")
+        rows = []
+        for b in buyers_simulated:
+            buyer_name = b["name"]
+            for pid, p in b["products"].items():
+                rows.append({
+                    "Acheteur": buyer_name,
+                    "Produit": products[pid]["name"],
+                    "Qté demandée": p["qty_desired"],
+                    "Qté allouée": allocations[buyer_name].get(pid, 0),
+                    "Prix final (€)": p["current_price"]
+                })
+        df_results = pd.DataFrame(rows)
+        st.dataframe(df_results)
 
-            st.markdown(f"### 💰 Chiffre d'affaires total simulé : {total_ca:.2f} €")
+        st.markdown(f"### 💰 Chiffre d'affaires total simulé : {total_ca:.2f} €")
