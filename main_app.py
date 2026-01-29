@@ -174,6 +174,37 @@ else:
 
         st.markdown(f"### 💰 Chiffre d'affaires total simulé : {total_ca_global:.2f} €")
 
+        st.subheader("📋 Récapitulatif complet par lot, produit et acheteur")
+
+        lot_rows = []
+
+        for lot_id, lot in lots.items():
+            lot_products = lot["products"]
+            for pid in lot_products:
+                product_info = products[pid]
+                for b in buyers_simulated:
+                    buyer_name = b["name"]
+                    prod_buyer = b["products"].get(pid)
+                    if prod_buyer:
+                        lot_rows.append({
+                            "Lot": lot["lot_name"],
+                            "Produit": product_info["name"],
+                            "Stock total": product_info["stock"],
+                            "MOQ": product_info["seller_moq"],
+                            "Volume multiple": product_info["volume_multiple"],
+                            "Acheteur": buyer_name,
+                            "Qté demandée": prod_buyer["qty_desired"],
+                            "Qté allouée": allocations[buyer_name].get(pid, 0),
+                            "Prix max (€)": prod_buyer["max_price"],
+                            "Prix final (€)": prod_buyer["current_price"]
+                        })
+
+        df_lot_summary = pd.DataFrame(lot_rows)
+
+        # Affichage DataFrame avec possibilité de tri
+        st.dataframe(df_lot_summary.sort_values(["Lot", "Produit", "Acheteur"]))
+
+
         # --- Affichage historique des incréments ---
         if all_history:
             st.subheader("📈 Historique des incréments de prix par lot")
