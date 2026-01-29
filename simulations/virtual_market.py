@@ -9,31 +9,28 @@ def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
     products = {}
     buyers = []
 
-    for l in range(1, num_lots+1):
+    VOLUME_MULTIPLE = 10  # Tout sera multiple de 10
+
+    # --- Générer lots et produits ---
+    for l in range(1, num_lots + 1):
         lot_id = f"lot_{l}"
         seller_id = f"Seller_{random_string(3)}"
         lots[lot_id] = {
             "seller_id": seller_id,
             "lot_name": f"Lot {lot_id}",
-            "global_moq": random.randint(50, 200),
+            "global_moq": VOLUME_MULTIPLE * random.randint(5, 20),
             "products": []
         }
 
-        for p in range(1, num_products+1):
+        for p in range(1, num_products + 1):
             pid = f"{lot_id}_P{p}"
-            volume_multiple = random.choice([10, 20, 50])
+            volume_multiple = VOLUME_MULTIPLE
 
             # Stock total multiple de volume_multiple
-            stock = random.randint(100, 1000)
-            stock = (stock // volume_multiple) * volume_multiple
-            if stock == 0:
-                stock = volume_multiple
+            stock = VOLUME_MULTIPLE * random.randint(10, 100)
 
             # MOQ multiple de volume_multiple
-            seller_moq = random.randint(50, 200)
-            seller_moq = (seller_moq // volume_multiple) * volume_multiple
-            if seller_moq == 0:
-                seller_moq = volume_multiple
+            seller_moq = VOLUME_MULTIPLE * random.randint(5, 20)
 
             products[pid] = {
                 "id": pid,
@@ -47,21 +44,22 @@ def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
             }
             lots[lot_id]["products"].append(pid)
 
-    # Générer acheteurs
-    for b in range(1, num_buyers+1):
+    # --- Générer acheteurs ---
+    for b in range(1, num_buyers + 1):
         buyer_name = f"Buyer_{b}"
         buyer_products = {}
         for pid, prod in products.items():
-            # Limiter la quantité désirée à ≤ stock, multiple du volume
-            max_qty = (prod["stock"] // prod["volume_multiple"]) * prod["volume_multiple"]
-            min_qty = (prod["seller_moq"] // prod["volume_multiple"]) * prod["volume_multiple"]
+            max_qty = prod["stock"]  # ≤ stock total
+            min_qty = prod["seller_moq"]  # ≥ MOQ
+
             if min_qty > max_qty:
                 min_qty = max_qty  # éviter plage vide
             if min_qty == 0:
-                min_qty = prod["volume_multiple"]
+                min_qty = VOLUME_MULTIPLE
 
+            # Générer quantité désirée multiple de volume_multiple
             possible_qtys = list(range(min_qty, max_qty + 1, prod["volume_multiple"]))
-            qty_desired = random.choice(possible_qtys)
+            qty_desired = random.choice(possible_qtys) if possible_qtys else min_qty
 
             buyer_products[pid] = {
                 "qty_desired": qty_desired,
