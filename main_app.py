@@ -1,77 +1,117 @@
 # main_app.py
 import streamlit as st
-from apps import buyer_app, seller_app
-from simulations.virtual_market import generate_virtual_market
-from core.allocation_algo import run_auto_bid_aggressive, solve_model
+import copy
+import random
+import string
 import pandas as pd
+from core.allocation_algo import run_auto_bid_aggressive, solve_model
+from core.recommendation import simulate_optimal_bid
 
-st.set_page_config(
-    page_title="Market Allocation Simulator",
-    layout="wide"
-)
+# -----------------------------
+# Génération marché virtuel
+# -----------------------------
+def random_string(n=5):
+    return "".join(random.choices(string.ascii_uppercase, k=n))
 
-st.title("🛒 Market Allocation Simulator")
+def generate_virtual_market(num_lots=2, num_products=3, num_buyers=5):
+    lots = {}
+    products = {}
+    buyers = []
 
-menu = ["Accueil", "Acheteur", "Vendeur", "Simulation de marché"]
-choice = st.sidebar.selectbox("Navigation", menu)
+    # Générer lots et produits
+    for l in range(1, num_lots+1):
+        lot_id = f"lot_{l}"
+        seller_id = f"Seller_{random_string(3)}"
+        lots[lot_id] = {
+            "seller_id": seller_id,
+            "lot_name": f"Lot {lot_id}",
+            "global_moq": random.randint(50, 200),
+            "products": []
+        }
 
-if choice == "Accueil":
-    st.markdown(
-        """
-        Bienvenue sur le simulateur de marché multiproduit !
-        
-        🔹 Utilisez **Acheteur** pour simuler vos enchères et recommandations.  
-        🔹 Utilisez **Vendeur** pour suivre vos lots et le chiffre d'affaires.  
-        🔹 Utilisez **Simulation de marché** pour tester des scénarios massifs et observer le comportement des algorithmes.
-        """
-    )
+        for p in range(1, num_products+1):
+            pid = f"{lot_id}_P{p}"
+            volume_multiple = random.choice([10, 20, 50])
+            stock = random.randint(100, 1000)
+            products[pid] = {
+                "id": pid,
+                "name": f"Produit {pid}",
+                "stock": stock,
+                "volume_multiple": volume_multiple,
+                "starting_price": round(random.uniform(5, 20), 2),
+                "seller_moq": random.randint(50, 200),
+                "shelf_life": "31.12.2026",
+                "lot_id": lot_id
+            }
+            lots[lot_id]["products"].append(pid)
 
-elif choice == "Acheteur":
-    st.subheader("💡 Espace Acheteur")
-    buyer_app.buyer_app()
+    # Générer acheteurs
+    for b in range(1, num_buyers+1):
+        buyer_name = f"Buyer_{b}"
+        buyer_products = {}
+        for pid, prod in products.items():
+            buyer_products[pid] = {
+                "qty_desired": random.randint(prod["seller_moq"], prod["stock"]),
+                "current_price": prod["starting_price"],
+                "max_price": round(prod["starting_price"] * random.uniform(1.1, 2.0), 2),
+                "moq": prod["seller_moq"],
+                "volume_multiple": prod["volume_multiple"]
+            }
+        buyers.append({
+            "name": buyer_name,
+            "auto_bid": True,
+            "products": buyer_products
+        })
 
-elif choice == "Vendeur":
-    st.subheader("💡 Espace Vendeur")
-    seller_app.seller_app()
+    return lots, products, buyers
 
-elif choice == "Simulation de marché":
-    st.subheader("💻 Simulation de marché virtuelle")
+# -----------------------------
+# Interface principale
+# -----------------------------
+st.title("🏛️ Plateforme Enchères - Test et Réel")
 
-    # Paramètres de simulation
+mode = st.radio("Choisir le mode :", ["Marché réel", "Marché virtuel (simulation)"])
+
+if mode == "Marché réel":
+    st.info("Utilisez cette section pour saisir vos enchères réelles et voir vos allocations.")
+
+    # Ici tu peux mettre ton ancien code buyer_app.py intégré ou importer
+    from apps.buyer_app import buyer_app
+    buyer_app()
+
+else:
+    st.info("Génération automatique de lots, produits et acheteurs pour tests massifs.")
+
     num_lots = st.number_input("Nombre de lots", min_value=1, max_value=20, value=3)
-    num_products_per_lot = st.number_input("Nombre de produits par lot", min_value=1, max_value=10, value=3)
-    num_buyers = st.number_input("Nombre d'acheteurs", min_value=1, max_value=50, value=10)
-    
-    if st.button("🧪 Générer marché virtuel et lancer simulation"):
+    num_products_per_lot = st.number_input("Produits par lot", min_value=1, max_value=10, value=3)
+    num_buyers = st.number_input("Nombre d'acheteurs", min_value=1, max_value=50, value=5)
 
-        # Génération du marché
+    if st.button("🧪 Générer marché virtuel et lancer simulation"):
         lots, products, buyers = generate_virtual_market(
             num_lots=num_lots,
-            num_products_per_lot=num_products_per_lot,
+            num_products=num_products_per_lot,
             num_buyers=num_buyers
         )
-        st.success("✅ Marché virtuel généré avec succès !")
 
-        # Lancer auto-bid pour tous les acheteurs
-        buyers_after_bid = run_auto_bid_aggressive(buyers, list(products.values()))
+        st.success("✅ Marché virtuel généré !")
 
-        # Calculer allocations et CA
-        allocations, total_ca = solve_model(buyers_after_bid, list(products.values()))
+        # Lancer l'auto-bid
+        buyers_simulated = run_auto_bid_aggressive(buyers, list(products.values()), max_rounds=30)
+        allocations, total_ca = solve_model(buyers_simulated, list(products.values()))
 
-        # Affichage des résultats
-        st.subheader("📊 Résultats des allocations")
+        st.subheader("📊 Résultats allocation virtuelle")
         rows = []
-        for b in buyers_after_bid:
+        for b in buyers_simulated:
             buyer_name = b["name"]
-            for pid, prod in b["products"].items():
+            for pid, p in b["products"].items():
                 rows.append({
                     "Acheteur": buyer_name,
                     "Produit": products[pid]["name"],
-                    "Qté demandée": prod["qty_desired"],
+                    "Qté demandée": p["qty_desired"],
                     "Qté allouée": allocations[buyer_name].get(pid, 0),
-                    "Prix final (€)": prod["current_price"]
+                    "Prix final (€)": p["current_price"]
                 })
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True)
+        df_results = pd.DataFrame(rows)
+        st.dataframe(df_results)
 
-        st.markdown(f"### 💵 Chiffre d'affaires total simulé : {total_ca:.2f} €")
+        st.markdown(f"### 💰 Chiffre d'affaires total simulé : {total_ca:.2f} €")
