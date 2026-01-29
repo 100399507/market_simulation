@@ -178,27 +178,33 @@ else:
 
         lot_rows = []
 
-        for lot_id, lot in lots.items():
+         for lot_id, lot in lots.items():
             lot_products = lot["products"]
             for pid in lot_products:
                 product_info = products[pid]
                 for row in all_results:
                     if row["Produit"] == product_info["name"] and row["Lot"] == lot["lot_name"]:
+                        qty_allocated = row["Qté allouée"]
+                        stock_total = product_info["stock"]
+                        percent_allocated = round((qty_allocated / stock_total) * 100, 2) if stock_total > 0 else 0
+        
                         lot_rows.append({
                             "Lot": lot["lot_name"],
                             "Produit": product_info["name"],
-                            "Stock total": product_info["stock"],
+                            "Stock total": stock_total,
                             "MOQ": product_info["seller_moq"],
                             "Volume multiple": product_info["volume_multiple"],
                             "Acheteur": row["Acheteur"],
                             "Qté demandée": row["Qté demandée"],
-                            "Qté allouée": row["Qté allouée"],
+                            "Qté allouée": qty_allocated,
                             "Prix max (€)": next(
                                 (b["products"][pid]["max_price"] for b in buyers if b["name"] == row["Acheteur"]),
                                 None
                             ),
-                            "Prix final (€)": row["Prix final (€)"]
+                            "Prix final (€)": row["Prix final (€)"],
+                            "% de quantité écoulée": percent_allocated
                         })
+
 
 
         df_lot_summary = pd.DataFrame(lot_rows)
